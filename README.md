@@ -14,4 +14,6 @@ Automated provisioning and baseline security hardening playbooks targeting Debia
    cp inventory.example.ini inventory.ini
 
 2. Execute the playbook
-ansible-playbook baseline.yml -i inventory.ini --ask-become-pass
+
+    ``` bash
+    ansible-playbook baseline.yml -i inventory.ini --ask-become-pass
