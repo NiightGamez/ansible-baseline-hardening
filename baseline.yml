@@ -1,0 +1,65 @@
+---
+- name: Apply Linux Baseline and Host Hardening
+  hosts: edge_nodes
+  become: true
+
+  tasks:
+    - name: Update apt cache and upgrade installed packages
+      ansible.builtin.apt:
+        update_cache: yes
+        upgrade: dist
+        cache_valid_time: 3600
+
+    - name: Install core administrative and defensive packages
+      ansible.builtin.apt:
+        name:
+          - curl
+          - git
+          - htop
+          - ufw
+          - fail2ban
+          - unattended-upgrades
+        state: present
+
+    - name: Ensure fail2ban is running and enabled on boot
+      ansible.builtin.systemd:
+        name: fail2ban
+        state: started
+        enabled: yes
+
+    - name: Enforce SSH security parameters in sshd_config
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+        validate: 'sshd -t -f %s'
+      loop:
+        - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+        - { regexp: '^#?PermitEmptyPasswords', line: 'PermitEmptyPasswords no' }
+        - { regexp: '^#?MaxAuthTries', line: 'MaxAuthTries 4' }
+      notify: Restart SSH
+
+    - name: Set UFW default traffic policies
+      community.general.ufw:
+        direction: "{{ item.direction }}"
+        policy: "{{ item.policy }}"
+      loop:
+        - { direction: 'incoming', policy: 'deny' }
+        - { direction: 'outgoing', policy: 'allow' }
+
+    - name: Explicitly allow SSH port (22/tcp)
+      community.general.ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+
+    - name: Enable UFW firewall service
+      community.general.ufw:
+        state: enabled
+
+  handlers:
+    - name: Restart SSH
+      ansible.builtin.service:
+        name: ssh
+        state: restarted
